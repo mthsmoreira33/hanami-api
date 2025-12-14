@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from hanami.api.router import router as api_router
 
-app = FastAPI()
+app = FastAPI(
+    title="Hanami API",
+    version="0.1.0",
+)
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello, World!"}
+app.include_router(api_router)

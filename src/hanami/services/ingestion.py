@@ -6,6 +6,7 @@ class InvalidDataError(ValueError):
     """Erro levantado quando o arquivo não atende ao contrato esperado."""
     pass
 
+
 REQUIRED_COLUMNS = {
     "id_transacao",
     "data_venda",
@@ -23,7 +24,7 @@ OPTIONAL_COLUMNS = {
     "regiao",
 }
 
-VALID_CANAL_VENDA = {
+VALID_SALES_CHANNELS = {
     "online",
     "loja física",
     "marketplace",
@@ -31,7 +32,7 @@ VALID_CANAL_VENDA = {
     "app mobile",
 }
 
-VALID_FORMA_PAGAMENTO = {
+VALID_PAYMENT_METHODS = {
     "cartão crédito",
     "cartão débito",
     "pix",
@@ -41,12 +42,13 @@ VALID_FORMA_PAGAMENTO = {
 
 def load_and_validate_file(file_path: str | Path) -> pd.DataFrame:
     """
-    Lê arquivos CSV ou XLSX, valida, padroniza e valida semanticamente
-    os dados, retornando um DataFrame Pandas confiável.
+    Lê arquivos CSV ou XLSX, valida estrutura, tipos e regras semânticas,
+    retornando um DataFrame Pandas confiável.
     """
 
     file_path = Path(file_path)
 
+    # Leitura do arquivo conforme extensão
     if file_path.suffix.lower() == ".csv":
         df = pd.read_csv(file_path)
     elif file_path.suffix.lower() in {".xlsx", ".xls"}:
@@ -56,12 +58,14 @@ def load_and_validate_file(file_path: str | Path) -> pd.DataFrame:
             f"Formato de arquivo não suportado: {file_path.suffix}"
         )
 
+    # Validação de colunas obrigatórias
     missing_columns = REQUIRED_COLUMNS - set(df.columns)
     if missing_columns:
         raise InvalidDataError(
             f"Colunas obrigatórias ausentes: {', '.join(sorted(missing_columns))}"
         )
 
+    # Conversão de colunas numéricas
     numeric_columns = [
         "valor_final",
         "subtotal",
@@ -69,11 +73,13 @@ def load_and_validate_file(file_path: str | Path) -> pd.DataFrame:
         "idade_cliente",
     ]
 
-    for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    for column in numeric_columns:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
 
+    # Conversão de datas
     df["data_venda"] = pd.to_datetime(df["data_venda"], errors="coerce")
 
+    # Padronização de texto
     df["canal_venda"] = (
         df["canal_venda"].astype(str).str.strip().str.lower()
     )
@@ -81,22 +87,25 @@ def load_and_validate_file(file_path: str | Path) -> pd.DataFrame:
         df["forma_pagamento"].astype(str).str.strip().str.lower()
     )
 
-    semantic_errors = []
+    # Validações semânticas
+    semantic_errors: list[str] = []
 
-    invalid_canal = ~df["canal_venda"].isin(VALID_CANAL_VENDA)
-    if invalid_canal.any():
+    invalid_sales_channel = ~df["canal_venda"].isin(VALID_SALES_CHANNELS)
+    if invalid_sales_channel.any():
         semantic_errors.append("valores inválidos em canal_venda")
 
-    invalid_pagamento = ~df["forma_pagamento"].isin(VALID_FORMA_PAGAMENTO)
-    if invalid_pagamento.any():
+    invalid_payment_method = ~df["forma_pagamento"].isin(VALID_PAYMENT_METHODS)
+    if invalid_payment_method.any():
         semantic_errors.append("valores inválidos em forma_pagamento")
 
-    invalid_desconto = (df["desconto_percent"] < 0) | (df["desconto_percent"] > 100)
-    if invalid_desconto.any():
+    invalid_discount = (
+        (df["desconto_percent"] < 0) | (df["desconto_percent"] > 100)
+    )
+    if invalid_discount.any():
         semantic_errors.append("desconto_percent fora do intervalo 0–100")
 
-    invalid_valor = df["valor_final"] > df["subtotal"]
-    if invalid_valor.any():
+    invalid_final_value = df["valor_final"] > df["subtotal"]
+    if invalid_final_value.any():
         semantic_errors.append("valor_final maior que subtotal")
 
     if semantic_errors:
@@ -104,15 +113,16 @@ def load_and_validate_file(file_path: str | Path) -> pd.DataFrame:
             "Falhas de validação semântica: " + "; ".join(semantic_errors)
         )
 
-    before_rows = len(df)
+    # Remoção controlada de linhas críticas nulas
+    total_rows_before = len(df)
     df = df.dropna(subset=["valor_final", "data_venda"])
-    removed_rows = before_rows - len(df)
+    removed_rows = total_rows_before - len(df)
 
     if removed_rows > 0:
-        if removed_rows / before_rows > 0.05:
+        if removed_rows / total_rows_before > 0.05:
             raise InvalidDataError(
                 f"{removed_rows} linhas removidas por dados críticos nulos "
-                f"({removed_rows / before_rows:.1%} do total)"
+                f"({removed_rows / total_rows_before:.1%} do total)"
             )
 
     return df

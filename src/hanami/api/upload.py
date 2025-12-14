@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pathlib import Path
+from loguru import logger
 from hanami.services.ingestion import load_and_validate_file, InvalidDataError
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
@@ -14,6 +15,7 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 @router.post("/upload/")
 async def upload_file(file: UploadFile = File(None)):
     if not file:
+        logger.error("Upload falhou: nenhum arquivo enviado")
         raise HTTPException(status_code=400, detail="Nenhum arquivo enviado")
 
     file_id = uuid.uuid4().hex
@@ -28,12 +30,25 @@ async def upload_file(file: UploadFile = File(None)):
         repo = SalesRepository(engine)
         linhas = repo.save_dataframe(df)
 
+        logger.info(
+            f"Upload bem-sucedido | arquivo={destination.name} | linhas={linhas}"
+        )
+
         return {
             "status": "sucesso",
             "linhas_processadas": linhas,
-            "arquivo": destination.name,
         }
 
     except InvalidDataError as e:
+        logger.error(
+            f"Erro de validação no upload | arquivo={file.filename} | erro={e}"
+        )
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=str(e))
+
+    except Exception as e:
+        logger.exception(
+            f"Erro inesperado no upload | arquivo={file.filename}"
+        )
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Erro interno no servidor")

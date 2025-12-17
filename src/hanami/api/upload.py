@@ -1,54 +1,77 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pathlib import Path
 from loguru import logger
+import uuid
+
 from hanami.services.ingestion import load_and_validate_file, InvalidDataError
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
-import uuid
 
-router = APIRouter()
+router = APIRouter(prefix="/upload", tags=["Upload"])
 
 RAW_DIR = Path("data/raw")
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 
-@router.post("/upload/")
+@router.post("/")
 async def upload_file(file: UploadFile = File(None)):
-    if not file:
+    """
+    Recebe um arquivo CSV ou XLSX, valida os dados
+    e persiste o conteúdo no banco de dados.
+    """
+
+    if file is None:
         logger.error("Upload falhou: nenhum arquivo enviado")
-        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado")
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum arquivo enviado"
+        )
 
     file_id = uuid.uuid4().hex
-    destination = RAW_DIR / f"{file_id}_{file.filename}"
+    file_path = RAW_DIR / f"{file_id}_{file.filename}"
 
     try:
-        contents = await file.read()
-        destination.write_bytes(contents)
+        # Salva arquivo temporariamente
+        content = await file.read()
+        file_path.write_bytes(content)
 
-        df = load_and_validate_file(destination)
+        # Validação e limpeza
+        df = load_and_validate_file(file_path)
 
-        repo = SalesRepository(engine)
-        linhas = repo.save_dataframe(df)
+        # Persistência
+        repository = SalesRepository(engine)
+        rows_inserted = repository.save_dataframe(df)
 
         logger.info(
-            f"Upload bem-sucedido | arquivo={destination.name} | linhas={linhas}"
+            "Upload concluído com sucesso | arquivo={} | linhas_processadas={}",
+            file_path.name,
+            rows_inserted,
         )
 
         return {
             "status": "sucesso",
-            "linhas_processadas": linhas,
+            "linhas_processadas": rows_inserted,
         }
 
-    except InvalidDataError as e:
+    except InvalidDataError as exc:
         logger.error(
-            f"Erro de validação no upload | arquivo={file.filename} | erro={e}"
+            "Erro de validação no upload | arquivo={} | erro={}",
+            file.filename,
+            exc,
         )
-        destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail=str(e))
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        )
 
-    except Exception as e:
+    except Exception as exc:
         logger.exception(
-            f"Erro inesperado no upload | arquivo={file.filename}"
+            "Erro inesperado durante upload | arquivo={}",
+            file.filename,
         )
-        destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail="Erro interno no servidor")
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno no servidor",
+        )

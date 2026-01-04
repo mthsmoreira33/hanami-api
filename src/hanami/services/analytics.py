@@ -76,3 +76,25 @@ def calculate_product_analysis(df: pd.DataFrame) -> list[dict]:
     )
 
     return grouped_df.to_dict(orient="records")
+
+def calculate_financial_metrics(df: pd.DataFrame) -> dict:
+    net_revenue = df["valor_final"].sum()
+
+    if "custo_produto" in df.columns:
+        total_cost = df["custo_produto"].sum()
+        gross_profit = net_revenue - total_cost
+    else:
+        total_cost = None
+        gross_profit = None
+
+    return {
+        "receita_liquida": round(float(net_revenue), 2),
+        "lucro_bruto": round(float(gross_profit), 2) if gross_profit is not None else None,
+        "custo_total": round(float(total_cost), 2) if total_cost is not None else None,
+    }
+
+    return {
+        "receita_liquida": float(net_revenue),
+        "lucro_bruto": float(gross_profit) if gross_profit is not None else None,
+        "custo_total": float(total_cost) if total_cost is not None else None,
+    }

@@ -3,7 +3,7 @@ from loguru import logger
 
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
-from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis
+from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -74,4 +74,30 @@ def product_analysis(
         raise HTTPException(
             status_code=500,
             detail="Erro ao gerar análise de produtos"
+        )
+
+@router.get("/financial-metrics")
+def financial_metrics():
+    try:
+        repo = SalesRepository(engine)
+        df = repo.fetch_dataframe()
+
+        if df.empty:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum dado de vendas disponível"
+            )
+
+        metrics = calculate_financial_metrics(df)
+
+        return metrics
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        logger.exception("Erro ao gerar métricas financeiras")
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao gerar métricas financeiras"
         )

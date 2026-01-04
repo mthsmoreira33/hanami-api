@@ -92,9 +92,3 @@ def calculate_financial_metrics(df: pd.DataFrame) -> dict:
         "lucro_bruto": round(float(gross_profit), 2) if gross_profit is not None else None,
         "custo_total": round(float(total_cost), 2) if total_cost is not None else None,
     }
-
-    return {
-        "receita_liquida": float(net_revenue),
-        "lucro_bruto": float(gross_profit) if gross_profit is not None else None,
-        "custo_total": float(total_cost) if total_cost is not None else None,
-    }

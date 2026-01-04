@@ -19,21 +19,46 @@ O objetivo principal deste projeto é fornecer uma base reprodutível e organiza
 
 ```text
 hanami-api/
-├── data/               # Dados de entrada e saída
-│   ├── raw/            # Dados brutos (não versionados)
-│   └── processed/      # Dados processados/artefatos
-├── docs/               # Documentação adicional
+├── .venv/
+├── data/
+│   ├── processed/
+│   └── raw/
+├── docs/
+├── logs/
+│   └── app.log
+├── scripts/
+│   ├── check_analytics.py
+│   ├── check_db.py
+│   └── check_ingestion.py
 ├── src/
 │   └── hanami/
-│       ├── api/        # Camada HTTP (endpoints)
-│       ├── core/       # Configuração, logs, versionamento
-│       ├── models/     # Schemas Pydantic
-│       ├── services/   # Regras de negócio e processamento
-│       └── main.py     # Entry point da aplicação
-├── tests/              # Testes automatizados
+│       ├── api/
+│       │   ├── __init__.py
+│       │   ├── reports.py
+│       │   ├── router.py
+│       │   └── upload.py
+│       ├── core/
+│       │   ├── config.py
+│       │   ├── logging.py
+│       │   ├── storage.py
+│       │   └── versioning.py
+│       ├── db/
+│       │   ├── __init__.py
+│       │   ├── connection.py
+│       │   └── repository.py
+│       ├── models/
+│       │   └── schemas.py
+│       └── services/
+│           ├── __init__.py
+│           ├── analytics.py
+│           ├── ingestion.py
+│           └── validation.py
+├── tests/
 ├── .gitignore
 ├── pyproject.toml
-└── README.md
+├── README.md
+├── main.py
+└── hanami_api.egg-info/
 ```
 
 ---
@@ -74,6 +99,7 @@ pip install -e .[dev]
 ```
 
 Isso fará o `pip`:
+
 - ler o `pyproject.toml`
 - instalar todas as dependências necessárias
 - tornar o pacote `hanami` importável
@@ -89,6 +115,7 @@ uvicorn hanami.main:app --reload
 ```
 
 A API estará disponível em:
+
 ```
 http://localhost:8000
 ```
@@ -99,15 +126,15 @@ http://localhost:8000
 
 A documentação interativa (Swagger/OpenAPI) é gerada automaticamente pelo FastAPI:
 
-- **Swagger UI:**
-  ```
-  http://localhost:8000/docs
-  ```
+**Swagger UI**
+```
+http://localhost:8000/docs
+```
 
-- **OpenAPI JSON:**
-  ```
-  http://localhost:8000/openapi.json
-  ```
+**OpenAPI JSON**
+```
+http://localhost:8000/openapi.json
+```
 
 ---
 

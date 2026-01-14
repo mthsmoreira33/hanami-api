@@ -3,7 +3,7 @@ from loguru import logger
 
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
-from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics
+from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics, metrics_by_region, demographic_distribution
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -100,4 +100,72 @@ def financial_metrics():
         raise HTTPException(
             status_code=500,
             detail="Erro ao gerar métricas financeiras"
+        )
+
+
+@router.get("/regional-performance")
+def regional_performance():
+    try:
+        repo = SalesRepository(engine)
+        df = repo.fetch_dataframe()
+
+        if df.empty:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum dado disponível"
+            )
+
+        regional_df = metrics_by_region(df)
+
+        # região como chave
+        result = (
+            regional_df
+            .set_index("regiao")
+            .round(2)
+            .to_dict(orient="index")
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao gerar performance regional")
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao gerar performance regional"
+        )
+
+@router.get("/customer-profile")
+def customer_profile():
+    try:
+        repo = SalesRepository(engine)
+        df = repo.fetch_dataframe()
+
+        if df.empty:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum dado disponível"
+            )
+
+        profile = demographic_distribution(df)
+
+        result = {
+            "total_clientes": profile["total_clientes"],
+            "genero": profile["por_genero"].to_dict(orient="records"),
+            "faixa_etaria": profile["por_faixa_etaria"].to_dict(orient="records"),
+            "cidade": profile["por_cidade"].to_dict(orient="records"),
+            "estado": profile["por_estado"].to_dict(orient="records"),
+            "regiao": profile["por_regiao"].to_dict(orient="records"),
+        }
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao gerar perfil de clientes")
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao gerar perfil de clientes"
         )

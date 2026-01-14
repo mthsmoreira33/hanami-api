@@ -92,3 +92,71 @@ def calculate_financial_metrics(df: pd.DataFrame) -> dict:
         "lucro_bruto": round(float(gross_profit), 2) if gross_profit is not None else None,
         "custo_total": round(float(total_cost), 2) if total_cost is not None else None,
     }
+
+def metrics_by_region(df: pd.DataFrame) -> pd.DataFrame:
+    required = {
+        "regiao",
+        "valor_final",
+        "quantidade",
+        "custo_produto",
+        "margem_lucro"
+    }
+
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colunas ausentes: {missing}")
+
+    grouped = (
+        df.groupby("regiao")
+        .agg(
+            receita_total=("valor_final", "sum"),
+            unidades_vendidas=("quantidade", "sum"),
+            numero_transacoes=("id_transacao", "count"),
+            custo_total=("custo_produto", "sum"),
+            lucro_total=("margem_lucro", "sum"),
+            ticket_medio=("valor_final", "mean"),
+        )
+        .reset_index()
+    )
+
+    return grouped
+
+def demographic_distribution(df: pd.DataFrame) -> dict:
+    required = {
+        "cliente_id",
+        "idade_cliente",
+        "genero_cliente",
+        "cidade_cliente",
+        "estado_cliente",
+        "regiao"
+    }
+
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colunas ausentes: {missing}")
+
+    customers = (
+        df[list(required)]
+        .drop_duplicates(subset="cliente_id")
+    )
+
+    total = len(customers)
+
+    def build(col):
+        counts = customers[col].value_counts(dropna=False)
+        perc = (counts / total * 100).round(2)
+
+        return pd.DataFrame({
+            "valor": counts.index.astype(str),
+            "contagem": counts.values,
+            "percentual": perc.values
+        })
+
+    return {
+        "total_clientes": total,
+        "por_genero": build("genero_cliente"),
+        "por_faixa_etaria": build("idade_cliente"),
+        "por_cidade": build("cidade_cliente"),
+        "por_estado": build("estado_cliente"),
+        "por_regiao": build("regiao"),
+    }

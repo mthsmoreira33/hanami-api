@@ -1,12 +1,25 @@
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
-
+from pathlib import Path
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
 from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics, metrics_by_region, demographic_distribution
+from fastapi.responses import FileResponse
+from fastapi import Query
+import json
+
+import matplotlib
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, Image
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
+REPORTS_DIR = Path("data/processed/reports")
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get("/sales-summary")
 def get_sales_summary():
@@ -169,3 +182,94 @@ def customer_profile():
             status_code=500,
             detail="Erro ao gerar perfil de clientes"
         )
+
+@router.get("/download")
+def download_report(
+    format: str = Query(..., description="Formato do relatório: json ou pdf")
+):
+    repo = SalesRepository(engine)
+    df = repo.fetch_dataframe()
+
+    if df.empty:
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhum dado disponível para gerar relatório"
+        )
+
+    sales = calculate_sales_metrics(df)
+    financial = calculate_financial_metrics(df)
+    regional = metrics_by_region(df)
+
+    report = {
+        "vendas": sales,
+        "financeiro": financial,
+        "regional": regional.round(2).to_dict(orient="records"),
+    }
+
+    # -------- JSON --------
+    if format == "json":
+        file_path = REPORTS_DIR / "report.json"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+
+        return FileResponse(
+            path=file_path,
+            media_type="application/json",
+            filename="report.json"
+        )
+
+    # -------- PDF --------
+    if format == "pdf":
+        file_path = REPORTS_DIR / "report.pdf"
+
+        doc = SimpleDocTemplate(str(file_path), pagesize=A4)
+        styles = getSampleStyleSheet()
+        elements = []
+
+        elements.append(
+            Paragraph("Relatório Analítico - Hanami API", styles["Title"])
+        )
+
+        # ----- TABELA -----
+        table_data = [
+            ["Região", "Receita Total", "Unidades Vendidas", "Ticket Médio"]
+        ]
+
+        for _, row in regional.iterrows():
+            table_data.append([
+                row["regiao"],
+                f"{row['receita_total']:.2f}",
+                int(row["unidades_vendidas"]),
+                f"{row['ticket_medio']:.2f}",
+            ])
+
+        elements.append(Table(table_data))
+
+        # ----- GRÁFICO -----
+        plt.figure()
+        plt.bar(regional["regiao"], regional["receita_total"])
+        plt.title("Receita por Região")
+        plt.tight_layout()
+
+        chart_path = REPORTS_DIR / "receita_por_regiao.png"
+        plt.savefig(chart_path)
+        plt.close()
+
+        elements.append(
+            Image(str(chart_path), width=400, height=250)
+        )
+
+        doc.build(elements)
+
+        return FileResponse(
+            path=file_path,
+            media_type="application/pdf",
+            filename="report.pdf"
+        )
+
+    # -------- ERRO --------
+    raise HTTPException(
+        status_code=400,
+        detail="Formato inválido. Use json ou pdf."
+    )

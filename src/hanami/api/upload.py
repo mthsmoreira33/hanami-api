@@ -13,7 +13,11 @@ RAW_DIR = Path("data/raw")
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 
-@router.post("/")
+@router.post(
+    "/",
+    summary="Upload de arquivo de vendas",
+    description="Recebe um arquivo CSV ou XLSX, valida os dados e persiste no banco."
+)
 async def upload_file(file: UploadFile = File(None)):
     """
     Recebe um arquivo CSV ou XLSX, valida os dados

@@ -16,12 +16,26 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 
+from typing import Literal
+from hanami.models.reports import (
+    SalesSummaryResponse,
+    ProductAnalysisItem,
+    FinancialMetricsResponse,
+    RegionalPerformanceResponse,
+    CustomerProfileResponse,
+)
+
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORTS_DIR = Path("data/processed/reports")
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-@router.get("/sales-summary")
+@router.get(
+    "/sales-summary",
+    response_model=SalesSummaryResponse,
+    summary="Resumo geral de vendas",
+    description="Retorna métricas agregadas de vendas como total vendido, número de transações e ticket médio."
+)
 def get_sales_summary():
     try:
         repo = SalesRepository(engine)
@@ -46,7 +60,12 @@ def get_sales_summary():
             detail="Erro ao gerar resumo de vendas"
         )
 
-@router.get("/product-analysis")
+@router.get(
+    "/product-analysis",
+    response_model=list[ProductAnalysisItem],
+    summary="Análise de vendas por produto",
+    description="Retorna métricas agregadas por produto com opção de ordenação."
+)
 def product_analysis(
     sort_by: str | None = Query(
         default=None,
@@ -89,7 +108,12 @@ def product_analysis(
             detail="Erro ao gerar análise de produtos"
         )
 
-@router.get("/financial-metrics")
+@router.get(
+    "/financial-metrics",
+    response_model=FinancialMetricsResponse,
+    summary="Métricas financeiras",
+    description="Retorna receita líquida, custo total e lucro bruto."
+)
 def financial_metrics():
     try:
         repo = SalesRepository(engine)
@@ -116,7 +140,12 @@ def financial_metrics():
         )
 
 
-@router.get("/regional-performance")
+@router.get(
+    "/regional-performance",
+    response_model=RegionalPerformanceResponse,
+    summary="Performance regional",
+    description="Retorna métricas de vendas agregadas por região."
+)
 def regional_performance():
     try:
         repo = SalesRepository(engine)
@@ -149,7 +178,12 @@ def regional_performance():
             detail="Erro ao gerar performance regional"
         )
 
-@router.get("/customer-profile")
+@router.get(
+    "/customer-profile",
+    response_model=CustomerProfileResponse,
+    summary="Perfil demográfico dos clientes",
+    description="Retorna distribuições demográficas dos clientes como gênero, faixa etária, cidade, estado e região."
+)
 def customer_profile():
     try:
         repo = SalesRepository(engine)
@@ -183,7 +217,11 @@ def customer_profile():
             detail="Erro ao gerar perfil de clientes"
         )
 
-@router.get("/download")
+@router.get(
+    "/download",
+    summary="Download de relatório",
+    description="Gera e salva em disco um relatório consolidado em JSON ou PDF."
+)
 def download_report(
     format: str = Query(..., description="Formato do relatório: json ou pdf")
 ):

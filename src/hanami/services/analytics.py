@@ -160,3 +160,33 @@ def demographic_distribution(df: pd.DataFrame) -> dict:
         "por_estado": build("estado_cliente"),
         "por_regiao": build("regiao"),
     }
+
+def metrics_by_state(df: pd.DataFrame) -> pd.DataFrame:
+    required = {
+        "estado_cliente",
+        "valor_final",
+        "quantidade",
+        "custo_produto",
+        "margem_lucro",
+        "id_transacao",
+    }
+
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colunas ausentes: {missing}")
+
+    grouped = (
+        df
+        .groupby("estado_cliente")
+        .agg(
+            receita_total=("valor_final", "sum"),
+            unidades_vendidas=("quantidade", "sum"),
+            numero_transacoes=("id_transacao", "count"),
+            custo_total=("custo_produto", "sum"),
+            lucro_total=("margem_lucro", "sum"),
+            ticket_medio=("valor_final", "mean"),
+        )
+        .reset_index()
+    )
+
+    return grouped

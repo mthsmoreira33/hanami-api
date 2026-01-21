@@ -3,7 +3,7 @@ from loguru import logger
 from pathlib import Path
 from hanami.db.connection import engine
 from hanami.db.repository import SalesRepository
-from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics, metrics_by_region, demographic_distribution
+from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics, metrics_by_region, metrics_by_state, demographic_distribution
 from fastapi.responses import FileResponse
 from fastapi import Query
 from typing import Optional
@@ -169,7 +169,10 @@ def financial_metrics():
 @router.get(
     "/regional-performance",
     summary="Performance regional",
-    description="Retorna métricas agregadas por região, com filtro opcional por estado."
+    description=(
+        "Retorna métricas agregadas por região. "
+        "Se o parâmetro estado for informado, retorna métricas apenas para aquele estado."
+    )
 )
 def regional_performance(
     estado: Optional[str] = Query(
@@ -177,42 +180,43 @@ def regional_performance(
         description="Filtra os dados por estado (ex: SP, RJ, MG)"
     )
 ):
-    try:
-        repo = SalesRepository(engine)
-        df = repo.fetch_dataframe()
+    repo = SalesRepository(engine)
+    df = repo.fetch_dataframe()
+
+    if df.empty:
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhum dado disponível"
+        )
+
+    if estado:
+        df = df[df["estado_cliente"] == estado]
 
         if df.empty:
             raise HTTPException(
                 status_code=404,
-                detail="Nenhum dado disponível"
+                detail=f"Nenhum dado encontrado para o estado {estado}"
             )
 
-        if estado:
-            df = df[df["estado_cliente"] == estado]
-
-            if df.empty:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Nenhum dado encontrado para o estado {estado}"
-                )
-
-        regional_df = metrics_by_region(df)
+        state_df = metrics_by_state(df)
 
         return (
-            regional_df
+            state_df
             .round(2)
-            .set_index("regiao")
+            .set_index("estado_cliente")
             .to_dict(orient="index")
         )
 
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Erro ao gerar performance regional")
-        raise HTTPException(
-            status_code=500,
-            detail="Erro ao gerar performance regional"
-        )
+    # fallback: visão regional completa
+    regional_df = metrics_by_region(df)
+
+    return (
+        regional_df
+        .round(2)
+        .set_index("regiao")
+        .to_dict(orient="index")
+    )
+
 
 @router.get(
     "/customer-profile",

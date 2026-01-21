@@ -6,6 +6,9 @@ from hanami.db.repository import SalesRepository
 from hanami.services.analytics import calculate_sales_metrics, calculate_product_analysis, calculate_financial_metrics, metrics_by_region, demographic_distribution
 from fastapi.responses import FileResponse
 from fastapi import Query
+from typing import Optional
+from datetime import date
+import pandas as pd
 import json
 
 import matplotlib
@@ -32,14 +35,22 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get(
     "/sales-summary",
-    response_model=SalesSummaryResponse,
-    summary="Resumo geral de vendas",
-    description="Retorna métricas agregadas de vendas como total vendido, número de transações e ticket médio."
+    summary="Resumo de vendas",
+    description="Retorna métricas agregadas de vendas, com filtro opcional por período."
 )
-def get_sales_summary():
+def get_sales_summary(
+    start_date: Optional[date] = Query(
+        default=None,
+        description="Data inicial no formato YYYY-MM-DD"
+    ),
+    end_date: Optional[date] = Query(
+        default=None,
+        description="Data final no formato YYYY-MM-DD"
+    )
+):
     try:
         repo = SalesRepository(engine)
-        df = repo.fetch_all()
+        df = repo.fetch_dataframe()
 
         if df.empty:
             raise HTTPException(
@@ -47,8 +58,23 @@ def get_sales_summary():
                 detail="Nenhum dado de vendas disponível"
             )
 
-        sales_metrics = calculate_sales_metrics(df)
-        return sales_metrics
+        # 🔹 Conversão explícita (essencial)
+        df["data_venda"] = pd.to_datetime(df["data_venda"])
+
+        # 🔹 Aplicação dos filtros
+        if start_date:
+            df = df[df["data_venda"] >= pd.Timestamp(start_date)]
+
+        if end_date:
+            df = df[df["data_venda"] <= pd.Timestamp(end_date)]
+
+        if df.empty:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhuma venda encontrada no período informado"
+            )
+
+        return calculate_sales_metrics(df)
 
     except HTTPException:
         raise
@@ -142,11 +168,15 @@ def financial_metrics():
 
 @router.get(
     "/regional-performance",
-    response_model=RegionalPerformanceResponse,
     summary="Performance regional",
-    description="Retorna métricas de vendas agregadas por região."
+    description="Retorna métricas agregadas por região, com filtro opcional por estado."
 )
-def regional_performance():
+def regional_performance(
+    estado: Optional[str] = Query(
+        default=None,
+        description="Filtra os dados por estado (ex: SP, RJ, MG)"
+    )
+):
     try:
         repo = SalesRepository(engine)
         df = repo.fetch_dataframe()
@@ -157,17 +187,23 @@ def regional_performance():
                 detail="Nenhum dado disponível"
             )
 
+        if estado:
+            df = df[df["estado_cliente"] == estado]
+
+            if df.empty:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Nenhum dado encontrado para o estado {estado}"
+                )
+
         regional_df = metrics_by_region(df)
 
-        # região como chave
-        result = (
+        return (
             regional_df
-            .set_index("regiao")
             .round(2)
+            .set_index("regiao")
             .to_dict(orient="index")
         )
-
-        return result
 
     except HTTPException:
         raise

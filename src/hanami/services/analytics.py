@@ -190,3 +190,81 @@ def metrics_by_state(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return grouped
+
+def calculate_trends(
+    df: pd.DataFrame,
+    group_by: str = "day",
+    metric: str = "count",
+) -> list[dict]:
+
+    if "data_venda" not in df.columns:
+        raise ValueError("Coluna 'data_venda' não encontrada")
+
+    df["data_venda"] = pd.to_datetime(df["data_venda"])
+
+    if group_by == "day":
+        df["period"] = df["data_venda"].dt.date
+    elif group_by == "month":
+        df["period"] = df["data_venda"].dt.to_period("M").astype(str)
+    elif group_by == "quarter":
+        df["period"] = df["data_venda"].dt.to_period("Q").astype(str)
+    else:
+        raise ValueError("group_by inválido")
+
+    if metric == "count":
+        grouped = (
+            df.groupby("period")
+            .size()
+            .reset_index(name="value")
+        )
+    elif metric == "revenue":
+        grouped = (
+            df.groupby("period")["valor_final"]
+            .sum()
+            .reset_index(name="value")
+        )
+    else:
+        raise ValueError("metric inválido")
+
+    grouped = grouped.sort_values("period")
+
+    return grouped.to_dict(orient="records")
+
+def sales_trends(
+    df: pd.DataFrame,
+    freq: str = "M"  # M = mensal
+) -> list[dict]:
+    """
+    Gera análise temporal de vendas.
+
+    Args:
+        df: DataFrame de vendas
+        freq: frequência temporal (D, M, Y)
+
+    Returns:
+        Lista de dicionários com período e métricas
+    """
+
+    required = {"data_venda", "valor_final"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colunas ausentes: {missing}")
+
+    # Garantia crítica
+    df["data_venda"] = pd.to_datetime(df["data_venda"])
+
+    df["periodo"] = df["data_venda"].dt.to_period(freq)
+
+    grouped = (
+        df.groupby("periodo")
+        .agg(
+            receita_total=("valor_final", "sum"),
+            numero_transacoes=("valor_final", "count"),
+            ticket_medio=("valor_final", "mean"),
+        )
+        .reset_index()
+    )
+
+    grouped["periodo"] = grouped["periodo"].astype(str)
+
+    return grouped.round(2).to_dict(orient="records")

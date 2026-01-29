@@ -30,3 +30,45 @@ class SalesRepository:
         """
         query = text("SELECT * FROM sales")
         return pd.read_sql(query, self.engine)
+
+    def search(self, filters: dict, limit: int = 100):
+        base_query = "SELECT * FROM sales WHERE 1=1"
+        params = {}
+
+        if "estado" in filters:
+            base_query += " AND estado_cliente = :estado"
+            params["estado"] = filters["estado"]
+
+        if "cidade" in filters:
+            base_query += " AND cidade_cliente = :cidade"
+            params["cidade"] = filters["cidade"]
+
+        if "produto" in filters:
+            base_query += " AND nome_produto LIKE :produto"
+            params["produto"] = f"%{filters['produto']}%"
+
+        if "categoria" in filters:
+            base_query += " AND categoria = :categoria"
+            params["categoria"] = filters["categoria"]
+
+        if "start_date" in filters:
+            base_query += " AND data_venda >= :start_date"
+            params["start_date"] = filters["start_date"]
+
+        if "end_date" in filters:
+            base_query += " AND data_venda <= :end_date"
+            params["end_date"] = filters["end_date"]
+
+        if "min_valor" in filters:
+            base_query += " AND valor_final >= :min_valor"
+            params["min_valor"] = filters["min_valor"]
+
+        if "max_valor" in filters:
+            base_query += " AND valor_final <= :max_valor"
+            params["max_valor"] = filters["max_valor"]
+
+        base_query += " ORDER BY data_venda DESC LIMIT :limit"
+        params["limit"] = limit
+
+        with self.engine.connect() as conn:
+            return conn.execute(text(base_query), params).mappings().all()

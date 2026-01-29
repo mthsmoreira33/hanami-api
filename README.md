@@ -25,7 +25,6 @@ hanami-api/
 │   └── raw/
 ├── docs/
 ├── logs/
-│   └── app.log
 ├── scripts/
 │   ├── check_analytics.py
 │   ├── check_db.py
@@ -34,6 +33,8 @@ hanami-api/
 │   └── hanami/
 │       ├── api/
 │       │   ├── __init__.py
+│       │   ├── analytics.py
+│       │   ├── data.py
 │       │   ├── reports.py
 │       │   ├── router.py
 │       │   └── upload.py
@@ -47,18 +48,22 @@ hanami-api/
 │       │   ├── connection.py
 │       │   └── repository.py
 │       ├── models/
+│       │   ├── reports.py
 │       │   └── schemas.py
 │       └── services/
 │           ├── __init__.py
 │           ├── analytics.py
 │           ├── ingestion.py
+│           ├── search.py
 │           └── validation.py
 ├── tests/
+├── .dockerignore
 ├── .gitignore
+├── docker-compose.yml
+├── Dockerfile
 ├── pyproject.toml
 ├── README.md
-├── main.py
-└── hanami_api.egg-info/
+└── requirements.txt
 ```
 
 ---
@@ -112,6 +117,24 @@ Com o ambiente virtual ativo:
 
 ```bash
 uvicorn hanami.main:app --reload
+```
+
+A API estará disponível em:
+
+```
+http://localhost:8000
+```
+
+---
+
+## 🐳 Executando com Docker
+
+Se preferir rodar via Docker:
+
+1. **Construir e subir o container**
+
+```bash
+docker-compose up --build -d
 ```
 
 A API estará disponível em:

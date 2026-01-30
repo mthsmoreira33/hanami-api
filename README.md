@@ -161,16 +161,6 @@ http://localhost:8000/openapi.json
 
 ---
 
-## 🧪 Testes (opcional)
-
-Para rodar os testes automatizados:
-
-```bash
-pytest
-```
-
----
-
 ## 📝 Observações Importantes
 
 - O diretório `data/raw/` é ignorado pelo Git e deve conter apenas dados locais.
